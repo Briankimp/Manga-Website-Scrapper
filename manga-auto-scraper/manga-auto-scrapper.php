@@ -14,6 +14,7 @@ function mas_schedule_scraper() {
     }
     // Run the scraper immediately after activation
     mas_run_main_scraper();
+    
 }
 
 register_deactivation_hook(__FILE__, 'mas_clear_scraper');
@@ -30,11 +31,25 @@ $remote_name = 'test-upload.jpg';  // This is the name it will have on the FTP s
 
 mas_upload_to_ftp($local_file, $remote_name);
 
-
 function mas_run_main_scraper() {
+    error_log("[Manga Scraper] Starting scraper at " . date('Y-m-d H:i:s'));
+    
     require_once plugin_dir_path(__FILE__) . 'scraper/go-manga.php';
     require_once plugin_dir_path(__FILE__) . 'includes/post-creator.php';
 
     $manga = mas_scrape_go_manga();
-    mas_create_wp_post($manga);
+    if (!$manga) {
+        error_log("[Manga Scraper] No manga data scraped.");
+        return;
+    } else {
+        error_log("[Manga Scraper] Manga data scraped: " . print_r($manga, true));
+    }
+
+    $post_result = mas_create_wp_post($manga);
+    if ($post_result) {
+        error_log("[Manga Scraper] WordPress post created successfully.");
+    } else {
+        error_log("[Manga Scraper] Failed to create WordPress post.");
+    }
 }
+
