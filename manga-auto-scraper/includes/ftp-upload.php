@@ -2,13 +2,16 @@
 
 function mas_upload_to_ftp($local_file_path, $remote_file_name) {
     // FTP credentials (you can later load from WordPress options/settings page)
-    $ftp_server = "127.0.0.1"; // Your provided FTP host
-    $ftp_user = "brian";
-    $ftp_pass = "passwordbrian123";
-    $remote_file = 'test.jpg';
+    $ftp_server = "138.201.55.106"; // Your provided FTP host
+    $ftp_user = "mangapost";
+    $ftp_pass = "GyLFsBpan5tiehMc";
     $remote_dir = '/'; // uploads to C:\FTP_UPLOADS
-    $upload = ftp_put($ftp_conn, $remote_dir . $remote_file_name, $local_file_path, FTP_BINARY);
 
+    // Check if file exists before attempting upload
+    if (!file_exists($local_file_path)) {
+        error_log("FTP upload failed: File does not exist - $local_file_path");
+        return false;
+    }
 
     // Establish connection
     $ftp_conn = ftp_connect($ftp_server);
@@ -36,4 +39,14 @@ function mas_upload_to_ftp($local_file_path, $remote_file_name) {
 
     ftp_close($ftp_conn);
     return $upload;
+}
+
+$local_file = plugin_dir_path(__FILE__) . 'sample.jpg';  // This is a test image you'll place in the plugin folder
+$remote_name = 'test-upload.jpg';  // This is the name it will have on the FTP server
+
+// Only attempt upload if file exists (prevents fatal error on plugin load)
+if (file_exists($local_file)) {
+    mas_upload_to_ftp($local_file, $remote_name);
+} else {
+    error_log("Sample file for FTP upload not found: $local_file");
 }

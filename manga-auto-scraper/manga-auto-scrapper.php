@@ -12,6 +12,8 @@ function mas_schedule_scraper() {
     if (!wp_next_scheduled('mas_run_scraper')) {
         wp_schedule_event(time(), 'weekly', 'mas_run_scraper');
     }
+    // Run the scraper immediately after activation
+    mas_run_main_scraper();
 }
 
 register_deactivation_hook(__FILE__, 'mas_clear_scraper');
