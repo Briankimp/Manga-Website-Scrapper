@@ -26,10 +26,6 @@ add_action('mas_run_scraper', 'mas_run_main_scraper');
 
 require_once plugin_dir_path(__FILE__) . 'includes/ftp-upload.php';
 
-$local_file = plugin_dir_path(__FILE__) . 'sample.jpg';  // This is a test image you'll place in the plugin folder
-$remote_name = 'test-upload.jpg';  // This is the name it will have on the FTP server
-
-mas_upload_to_ftp($local_file, $remote_name);
 
 function mas_run_main_scraper() {
     error_log("[Manga Scraper] Starting scraper at " . date('Y-m-d H:i:s'));

@@ -41,12 +41,3 @@ function mas_upload_to_ftp($local_file_path, $remote_file_name) {
     return $upload;
 }
 
-$local_file = plugin_dir_path(__FILE__) . 'sample.jpg';  // This is a test image you'll place in the plugin folder
-$remote_name = 'test-upload.jpg';  // This is the name it will have on the FTP server
-
-// Only attempt upload if file exists (prevents fatal error on plugin load)
-if (file_exists($local_file)) {
-    mas_upload_to_ftp($local_file, $remote_name);
-} else {
-    error_log("Sample file for FTP upload not found: $local_file");
-}
