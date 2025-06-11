@@ -3,11 +3,16 @@
 function mas_scrape_go_manga() {
     $manga_url = 'https://www.go-manga.com/im-not-kind-talent/';
     
-    // 1. Fetch main manga page
+    // 1. Fetch main manga page with better headers
     $response = wp_remote_get($manga_url, [
-        'headers' => ['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'],
+        'headers' => [
+            'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language' => 'en-US,en;q=0.5',
+        ],
         'timeout' => 45,
-        'sslverify' => false
+        'sslverify' => false,
+        'redirection' => 5
     ]);
 
     if (is_wp_error($response)) {
@@ -29,7 +34,7 @@ function mas_scrape_go_manga() {
     $description = trim($xpath->query("//div[contains(@class, 'entry-content')]")->item(0)->nodeValue ?? '');
     $description = preg_replace('/^เรื่องย่อ\s+/', '', $description);
 
-    // 3. NEW: Extract chapter links with better selector
+    // 3. Extract chapter links
     $chapters = [];
     $chapter_links = $xpath->query("//div[contains(@class, 'eplister')]//li//a");
     
@@ -37,11 +42,9 @@ function mas_scrape_go_manga() {
         $chapter_url = $link->getAttribute('href');
         $chapter_title = trim($link->nodeValue);
         
-        // Extract chapter number from URL (like -68 at the end)
         preg_match('/-(\d+)\/$/', $chapter_url, $matches);
         $chapter_num = isset($matches[1]) ? (float)$matches[1] : 0;
         
-        // Skip duplicates and invalid chapters
         if (!$chapter_num || isset($chapters[$chapter_num])) continue;
         
         $chapters[$chapter_num] = [
@@ -52,18 +55,24 @@ function mas_scrape_go_manga() {
         ];
     }
 
-    // 4. Process chapters in reverse order (newest first)
     krsort($chapters);
     $chapters = array_values($chapters);
 
-    // 5. Fetch images for each chapter (limit to 3 chapters for testing)
-    foreach (array_slice($chapters, 0, 3) as &$chapter) {
+    // 4. Fetch images from each chapter
+    $count = 0;
+    foreach ($chapters as &$chapter) {
+        if ($count++ >= 3) break;
         error_log("[Scraper] Processing Chapter {$chapter['number']}: {$chapter['url']}");
         
         $chap_response = wp_remote_get($chapter['url'], [
-            'headers' => ['User-Agent' => 'Mozilla/5.0'],
+            'headers' => [
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Referer' => $manga_url,
+                'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+            ],
             'timeout' => 60,
-            'sslverify' => false
+            'sslverify' => false,
+            'redirection' => 5
         ]);
         
         if (is_wp_error($chap_response)) {
@@ -72,34 +81,42 @@ function mas_scrape_go_manga() {
         }
         
         $chap_html = wp_remote_retrieve_body($chap_response);
-        $chap_dom = new DOMDocument();
-        @$chap_dom->loadHTML($chap_html);
-        $chap_xpath = new DOMXPath($chap_dom);
-        
-        // NEW: Better image selector
-        $images = [];
-        $img_nodes = $chap_xpath->query("//div[@id='readerarea']//img");
-        
-        foreach ($img_nodes as $img) {
-            $src = $img->getAttribute('src');
-            if (!empty($src)) {
-                // Clean URL if needed
-                $src = str_replace(' ', '%20', trim($src));
-                $images[] = $src;
-            }
-        }
-        
-        $chapter['images'] = $images;
-        error_log("[Scraper] Found " . count($images) . " images for Chapter {$chapter['number']}");
-        
-        // Save chapter HTML for debugging
         file_put_contents(
             plugin_dir_path(__FILE__) . "debug-chapter-{$chapter['number']}.html", 
             $chap_html
         );
         
-        // Delay to avoid rate-limiting
-        sleep(3);
+        // Try multiple methods to extract images
+        $images = [];
+        
+        // Method 1: DOMDocument + XPath
+        $chap_dom = new DOMDocument();
+        @$chap_dom->loadHTML(mb_convert_encoding($chap_html, 'HTML-ENTITIES', 'UTF-8'));
+        $chap_xpath = new DOMXPath($chap_dom);
+        
+        $img_nodes = $chap_xpath->query("//div[@id='readerarea']//img[@src] | //div[@id='readerarea']//img[@data-src]");
+        foreach ($img_nodes as $img) {
+            $src = $img->getAttribute('src') ?: $img->getAttribute('data-src');
+            if (!empty($src)) {
+                $src = str_replace(' ', '%20', trim($src));
+                $images[] = $src;
+            }
+        }
+        
+        // Method 2: Regex fallback if no images found
+        if (empty($images)) {
+            preg_match_all('/<img[^>]+(src|data-src)=["\']([^"\']+)["\']/i', $chap_html, $matches);
+            if (!empty($matches[2])) {
+                $images = array_map(function($src) {
+                    return str_replace(' ', '%20', trim($src));
+                }, $matches[2]);
+            }
+        }
+        
+        $chapter['images'] = array_unique(array_filter($images));
+        error_log("[Scraper] Found " . count($chapter['images']) . " images for Chapter {$chapter['number']}");
+        
+        sleep(3); // Respect server rate limits
     }
 
     return [
