@@ -1,14 +1,6 @@
 <?php
 
-function mas_post_exists($title) {
-    $query = new WP_Query([
-        'title' => $title,
-        'post_type' => 'post',
-        'post_status' => ['publish', 'pending', 'draft'],
-        'posts_per_page' => 1,
-    ]);
-    return $query->have_posts();
-}
+
 
 function mas_create_wp_post($manga) {
     if (empty($manga['title'])) {
