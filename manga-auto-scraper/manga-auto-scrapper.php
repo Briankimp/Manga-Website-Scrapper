@@ -3,7 +3,7 @@
  * Plugin Name: Manga Auto Scraper
  * Description: Scrapes manga from go-manga.com and uploads chapters/images via FTP.
  * Version: 1.0
- * Author: Your Name
+ * Author: brianmunene.vercel.app
  */
 
 // Schedule weekly scraper
@@ -116,6 +116,9 @@ function mas_run_main_scraper() {
 
 // Helper function to download images
 function mas_download_image($url) {
+    if (!function_exists('download_url')) {
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+    }
     $tmp = download_url($url);
     if (is_wp_error($tmp)) {
         error_log("[Image Download] Failed: " . $url . " - " . $tmp->get_error_message());
