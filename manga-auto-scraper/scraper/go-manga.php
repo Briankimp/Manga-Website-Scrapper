@@ -34,20 +34,35 @@ function mas_scrape_go_manga() {
     $description = trim($xpath->query("//div[contains(@class, 'entry-content')]")->item(0)->nodeValue ?? '');
     $description = preg_replace('/^เรื่องย่อ\s+/', '', $description);
 
+    // 2.1 Extract Cover Image
+    $cover_url = '';
+    // Try og:image meta tag first
+    $meta_og_image = $xpath->query('//meta[@property="og:image"]')->item(0);
+    if ($meta_og_image && $meta_og_image->hasAttribute('content')) {
+        $cover_url = $meta_og_image->getAttribute('content');
+    }
+    // Fallback: try image in .thumb
+    if (!$cover_url) {
+        $thumb_img = $xpath->query('//div[contains(@class, "thumb")]/img')->item(0);
+        if ($thumb_img && $thumb_img->hasAttribute('src')) {
+            $cover_url = $thumb_img->getAttribute('src');
+        }
+    }
+    // Optional: log if cover not found
+    if (!$cover_url) {
+        error_log('[Scraper] Cover image not found for ' . $manga_url);
+    }
+    // Example: set the cover image for the post (replace $post_id with actual ID logic)
+
     // 3. Extract chapter links
     $chapters = [];
     $chapter_links = $xpath->query("//div[contains(@class, 'eplister')]//li//a");
-    
     foreach ($chapter_links as $link) {
         $chapter_url = $link->getAttribute('href');
         $chapter_title = trim($link->nodeValue);
-        
-        preg_match('/-(\d+)\/$/', $chapter_url, $matches);
+        preg_match('/-(\d+)/', $chapter_url, $matches);
         $chapter_num = isset($matches[1]) ? (float)$matches[1] : 0;
-        
-        if (!$chapter_num || isset($chapters[$chapter_num])) continue;
-        
-        $chapters[$chapter_num] = [
+        $chapters[] = [
             'number' => $chapter_num,
             'title' => $chapter_title,
             'url' => $chapter_url,
@@ -122,6 +137,7 @@ function mas_scrape_go_manga() {
     return [
         'title' => $title,
         'description' => $description,
+        'cover_url' => $cover_url,
         'status' => 'ongoing',
         'chapters' => $chapters,
         'scrape_time' => current_time('mysql')
